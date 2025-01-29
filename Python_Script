@@ -1,0 +1,821 @@
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Apr 27 13:46:21 2024
+
+@author: hashmi
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.layers import Dropout
+
+np.random.seed(42)
+import tensorflow as tf
+tf.random.set_seed(42)
+
+# Load input data from the first file
+input_data = pd.read_csv('/home/tarak/hashmi/rdf data/extrapolation/combinedfinaldata/x1.txt', header=None)
+
+# Load output data from the second file
+output_data = pd.read_csv('/home/tarak/hashmi/rdf data/extrapolation/combinedfinaldata/y1.txt', header=None)
+
+# Filter the input data to include only rows where the first column value is 0.8 or 1.0 for training
+train_input_data = input_data[input_data[0].isin([0.8, 1.0, 1.2])]
+train_output_data = output_data.iloc[train_input_data.index]
+
+# Split the filtered training data into training and testing sets (80/20 split)
+X_train, X_test, y_train, y_test = train_test_split(train_input_data.values, train_output_data.values, test_size=0.01, random_state=42)
+
+# Define your neural network model with hyperparameters
+model = Sequential([
+    #Dense(896, activation='relu', input_shape=(X_train.shape[1],)),
+    #Dense(448, activation='relu'),
+    #Dense(224, activation='relu'),
+    Dense(112, activation='relu', input_shape=(X_train.shape[1],)),
+    #Dropout(0.2),
+    Dense(56, activation='relu'),
+    #Dropout(0.2),
+    Dense(28, activation='relu'),
+    #Dropout(0.2),
+    Dense(14, activation='relu'),
+    #Dropout(0.2),
+    Dense(7, activation='relu'),
+    Dense(1)  # Output layer
+])
+
+# Define optimizer and loss function
+optimizer = Adam(learning_rate=0.001)  # Adjust learning rate
+loss_function = MeanSquaredError()  # You can also use other loss functions like MeanAbsoluteError
+
+# Compile the model with optimizer and loss function
+model.compile(optimizer=optimizer, loss=loss_function)
+
+# Train the model with hyperparameters
+batch_size = 202  # Adjust batch size
+epochs = 1000  # Adjust number of epochs
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size)
+
+# Evaluate the model on the test set
+y_pred_test = model.predict(X_test)
+r2_test = r2_score(y_test, y_pred_test)
+print("R^2 Score on Test Set:", r2_test)
+#%%
+# Test the model on the test set for 0.6, 1.2, and 1.4
+test_input_data = input_data[input_data[0].isin([0.6,1.4])]
+test_output_data = output_data.iloc[test_input_data.index]
+test_input = test_input_data.values
+test_output = test_output_data.values
+y_pred_outside_range = model.predict(test_input)
+r2_outside_range = r2_score(test_output, y_pred_outside_range)
+print("R^2 Score on Data Points Outside Training Range (0.6, 1.4):", r2_outside_range)
+#%%
+# Function to plot a specific range of data points
+def plot_range(start_idx, end_idx):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(output_data.iloc[start_idx:end_idx], model.predict(input_data.iloc[start_idx:end_idx].values), color='blue')
+    plt.plot(output_data.iloc[start_idx:end_idx], output_data.iloc[start_idx:end_idx], color='red', linestyle='--')
+    plt.title(f'Actual vs Predicted (Data Points {start_idx+1} to {end_idx})')
+    plt.xlabel('Actual Value')
+    plt.ylabel('Predicted Value')
+    plt.grid(True)
+    plt.show()
+#%%# parity plot
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
+# Apply seaborn style
+sns.set_style("whitegrid")
+
+# Function to plot a specific range of data points (Actual vs Predicted) with green pellets and white borders
+def plot_range(start_idx, end_idx):
+    plt.figure(figsize=(6, 6))  # Square figure
+    actual_values = output_data.iloc[start_idx:end_idx].values.flatten()
+    predicted_values = model.predict(input_data.iloc[start_idx:end_idx].values).flatten()
+
+    # Create scatter plot with green pellets and blue borders
+    plt.scatter(actual_values, predicted_values, color='green', edgecolor='blue', s=100, linewidth=2, label='')
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values), np.min(predicted_values))
+    max_val = max(np.max(actual_values), np.max(predicted_values))
+
+    # Calculate the center points of the diagonal
+    x_center_start = min_val
+    y_center_start = min_val
+    x_center_end = max_val
+    y_center_end = max_val
+
+    # Plot reference diagonal line from center of one corner to the center of the opposite corner
+    plt.plot([x_center_start, x_center_end], [y_center_start, y_center_end], color='red', linestyle='-', linewidth=3, label='')
+
+    # Customizations
+    plt.title(f'', fontsize=20, fontweight='bold')
+    plt.xlabel('Actual g(r)', fontsize=20, fontweight='bold')
+    plt.ylabel('Predicted g(r)', fontsize=20, fontweight='bold')
+    
+    # Bold and larger font for tick marks
+    plt.xticks(fontsize=14, fontweight='bold')
+    plt.yticks(fontsize=14, fontweight='bold')
+    
+    # Set spine colors and thickness
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_linewidth(4)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+    
+    # Show legend
+    plt.legend(frameon=False, fontsize=12)
+    
+    plt.show()
+    
+# Example: Plot data from 0 to 100
+plot_range(0, 100)  # aa 0.6
+plot_range(49995, 50095)  # aa 1.4
+plot_range(50500, 50600)  # ab 0.6
+plot_range(100293, 100393)  # ab1.4
+plot_range(110090, 110190)  # bb0.6
+plot_range(149480, 149580)  # bb1.4
+plot_range(0, 151500)  # Full range
+
+
+
+#%%# Function to plot the distribution of actual and predicted values over the 6th column of the input data
+def plot_distribution(start_idx, end_idx, dpi=300):
+    plt.figure(figsize=(4, 4), dpi=dpi)
+    
+    # Get the actual and predicted values for the specified range
+    actual_values = output_data.iloc[start_idx:end_idx]
+    predicted_values = model.predict(input_data.iloc[start_idx:end_idx].values)
+    
+    # Get the 6th column values for the specified range
+    x_values = input_data.iloc[start_idx:end_idx, 4]
+    
+    # Plot the actual values as a solid line with thick black borders
+    plt.plot(x_values, actual_values, color='blue', label='Actual', linewidth=2, marker='o', markerfacecolor='black', markersize=1)
+    
+    # Plot the predicted values as a dotted line
+    #plt.plot(x_values, predicted_values, color='red', linestyle='--', linewidth=3, label='Predicted')
+    
+    # Customize the plot appearance
+    plt.title(f'', fontsize=20)
+    plt.xlabel('r', fontsize=20)
+    plt.ylabel('g(r)', fontsize=20)
+    plt.yticks([0, 1.25, 2.50], fontsize=20)
+    plt.ylim(0, 2.7)
+    plt.xticks([2.5, 5, 7.5, 10], fontsize=20)
+    plt.xlim(0.1, 5.1)
+    
+    # Get the current axis
+    ax = plt.gca()
+
+    # Apply tick parameters to the correct axis object
+   
+    # Apply tick parameters specifically to both axes
+    ax.tick_params(axis='both', which='both', length=10, width=2.5, direction='in', labelsize=20, pad=10)
+    
+    # Ensure the ticks are inside the plot
+    ax.tick_params(bottom=True, left=True)
+
+
+    # Customize tick mark lines and spine width
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove the grid
+    plt.grid(False)
+    
+    # Add a legend
+    legend = plt.legend(fontsize=14)
+    legend.get_frame().set_linewidth(0)
+
+    plt.show()
+
+# Example usage: Plot the distribution for data points
+plot_distribution(0, 100)          # aa
+plot_distribution(49995, 50095)    # aa 1.4
+plot_distribution(50500, 50600)    # ab 0.6
+plot_distribution(100293, 100393)  # ab 1.4
+plot_distribution(110090, 110190)  # bb 0.6
+plot_distribution(102010, 102110)
+plot_distribution(149480, 149580)  # bb 1.4
+plot_distribution(101505, 101605)
+plot_distribution(102010, 102110)
+plot_distribution(106555, 106655)
+
+
+
+#%%# Function to plot MSE vs. Epochs
+def plot_mse_vs_epochs(history):
+    plt.figure(figsize=(4, 4))
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='out', labelsize=18)
+    plt.plot(history.history['loss'], label='Training Loss (MSE)', color='red')
+    plt.title('', fontsize=20, fontweight='bold')
+    plt.xlabel('Epochs', fontsize=20)  # Make x-axis label bold
+    plt.ylabel('Mean Squared Error', fontsize=20)  # Make y-axis label bold
+    plt.grid(False)  # Remove the grid
+    plt.yticks([0,0.15,0.30,0.45], fontsize=18)
+    plt.ylim(0, 0.45)
+    plt.xticks([200,  600,  1000], fontsize=18)
+    plt.xlim(-10, 1000)
+    
+    
+    ax = plt.gca()
+    
+    ax.tick_params(axis='both', which='both', length=10, width=2.5, direction='out', labelsize=20, pad=10)
+    
+    # Ensure the ticks are inside the plot
+    ax.tick_params(bottom=True, left=True)
+
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+    
+    plt.show()
+    
+    #plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=18)
+
+# Plot MSE vs. Epochs
+plot_mse_vs_epochs(history)
+
+
+#%% main figure all type of g(r)
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Function to plot only the actual values for different ranges with distinct markers and line styles
+def plot_combined_distribution():
+    plt.figure(figsize=(4, 4))  # Create a single figure
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    # Plot for range (0, 100) with a solid line
+    actual_values_1 = output_data.iloc[0:100]
+    x_values_1 = input_data.iloc[0:100, 4]
+    plt.plot(x_values_1, actual_values_1, color='blue', label='AA', 
+             linewidth=4, linestyle='-', marker='', markerfacecolor='blue', markersize=20)
+    
+    # Plot for range (49995, 50095) with a dashed line
+    actual_values_2 = output_data.iloc[50500:50600]
+    x_values_2 = input_data.iloc[50500:50600, 4]
+    plt.plot(x_values_2, actual_values_2, color='green', label='AB', 
+             linewidth=4, linestyle='--', marker='', markerfacecolor='green', markersize=20)
+    
+    # Plot for range (50500, 50600) with a dotted line
+    actual_values_3 = output_data.iloc[101000:101100]
+    x_values_3 = input_data.iloc[101000:101100, 4]
+    plt.plot(x_values_3, actual_values_3, color='red', label='BB', 
+             linewidth=4, linestyle=':', marker='', markerfacecolor='red', markersize=20)
+    
+    # Customize the plot appearance
+    plt.title(f'', fontsize=16, )
+    plt.xlabel('r', fontsize=20)
+    plt.ylabel('g(r)', fontsize=20 )
+    plt.yticks([0, 2, 4, 6], fontsize=20)
+    plt.ylim(0, 7)
+    plt.xticks([1.5,3,4.5], fontsize=20)
+    plt.xlim(0.1, 5.1)
+    
+    # Remove the grid
+    plt.grid(False)
+    
+   
+    # Add thick black borders to the plot
+
+
+    
+    # Add a legend
+    legend = plt.legend(fontsize=16)
+    legend.get_frame().set_linewidth(0)
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+    plt.show()
+
+# Call the function to create the combined plot
+plot_combined_distribution()
+
+
+
+#%%# transparent 2d
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
+
+# Generate sample data
+x1 = 1.5 * np.random.randn(150) + 10
+y1 = 1.5 * np.random.randn(150) + 10
+x2 = 1.5 * np.random.randn(150) + 4
+y2 = 1.5 * np.random.randn(150) + 4
+x = np.append(x1, x2)
+y = np.append(y1, y2)
+
+# Stack the data points for density estimation
+xy = np.vstack([x, y])
+
+# Perform Gaussian KDE to estimate density
+kde = gaussian_kde(xy)(xy)
+
+# Scale point sizes based on density (larger sizes for higher densities)
+sizes = 200 * kde / kde.max()  # Scale to make the sizes more visible
+
+# Create the scatter plot
+plt.figure(figsize=(8, 6))
+scatter = plt.scatter(x, y, s=sizes, c=kde, cmap='viridis', alpha=0.6, edgecolor='black')
+
+# Add a colorbar to show density mapping
+plt.colorbar(scatter, label='Density')
+
+# Set title and labels
+plt.title('Scatter Plot with Size Based on Density', fontsize=16, fontweight='bold')
+plt.xlabel('x value', fontsize=14)
+plt.ylabel('y value', fontsize=14)
+
+# Bold tick labels
+plt.xticks(fontsize=12, fontweight='bold')
+plt.yticks(fontsize=12, fontweight='bold')
+# Customize plot spines
+ax = plt.gca()
+for spine in ax.spines.values():
+    spine.set_linewidth(4)
+    spine.set_edgecolor('black')
+
+plt.grid(False)
+plt.show()
+
+
+
+
+#%% train parity plot final
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# Apply seaborn style
+sns.set_style("whitegrid")
+
+# Function to plot parity plot for training data points
+def plot_parity_train():
+    plt.figure(figsize=(4, 4))  # Square figure
+    
+    # Get actual and predicted values for the training data
+    actual_values_train = y_train.flatten()
+    predicted_values_train = model.predict(X_train).flatten()
+
+    # Generate random sizes for the scatter points
+    area = (30 * np.random.rand(len(actual_values_train)))**2  # Random sizes for point radii
+
+    # Create scatter plot with transparency (alpha)
+    scatter = plt.scatter(actual_values_train, predicted_values_train, s=area, edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values_train), np.min(predicted_values_train))
+    max_val = max(np.max(actual_values_train), np.max(predicted_values_train))
+    
+    plt.xlim(min_val, 63)
+    plt.ylim(min_val, 63)
+
+    # Plot the x=y diagonal line (perfect prediction line)
+    plt.plot([min_val,63], [min_val, 63], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    #plt.title('Parity Plot for Training Data', fontsize=20, fontweight='bold')
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Bold and larger font for tick marks
+    
+    plt.xticks([20, 40,60],fontsize=20)
+    plt.yticks([0, 20, 40, 60],fontsize=20)
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    plt.legend(False)
+    plt.show()
+
+# Call the function to plot the training data parity plot
+plot_parity_train()
+
+
+#%%test parity plot outside range final
+
+def plot_parity_outside():
+    plt.figure(figsize=(4, 4))  # Square figure
+    
+    # Get actual and predicted values for the test data outside the training range
+    actual_values_outside = test_output.flatten()
+    predicted_values_outside = y_pred_outside_range.flatten()
+
+    # Generate random sizes for the scatter points
+    area = (30 * np.random.rand(len(actual_values_outside)))**2  # Random sizes for point radii
+
+    # Create scatter plot with transparency (alpha)
+    scatter = plt.scatter(actual_values_outside, predicted_values_outside, s=area, edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values_outside), np.min(predicted_values_outside))
+    max_val = max(np.max(actual_values_outside), np.max(predicted_values_outside))
+    
+    plt.xlim(min_val, max_val)
+    plt.ylim(min_val, max_val)
+
+    # Plot the x=y diagonal line (perfect prediction line)
+    plt.plot([min_val, 68], [min_val, 68], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Bold and larger font for tick marks
+    plt.xticks([ 20, 40, 60], fontsize=20)
+    plt.yticks([0, 20, 40, 60], fontsize=20)
+
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    plt.legend(False)
+    plt.show()
+
+
+
+
+# Call the function to plot the test data parity plot for data outside the training range
+plot_parity_outside()
+
+
+
+#%% parity plot for max dp case
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# Apply seaborn style
+sns.set_style("whitegrid")
+
+# Function to plot a specific range of data points (Actual vs Predicted) with green pellets and white borders
+def plot_range(start_idx, end_idx):
+    plt.figure(figsize=(4, 4))  # Square figure
+    actual_values = output_data.iloc[start_idx:end_idx].values.flatten()
+    predicted_values = model.predict(input_data.iloc[start_idx:end_idx].values).flatten()
+
+    # Generate random sizes for the scatter points
+    area = (30 * np.random.rand(len(actual_values)))**2  # Random sizes for point radii
+
+    # Create scatter plot with transparency (alpha), green pellets and blue borders
+    plt.scatter(actual_values, predicted_values, s=area, color='blue', edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values), np.min(predicted_values))
+    max_val = max(np.max(actual_values), np.max(predicted_values))
+
+    # Set consistent axis limits
+    plt.xlim(min_val, 1.8)
+    plt.ylim(min_val, 1.8)
+
+    # Plot reference diagonal line (x = y)
+    plt.plot([min_val, 20], [min_val, 20], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Bold and larger font for tick marks
+    plt.xticks([0.5,1.0,1.5], fontsize=20)
+    plt.yticks([0, 0.5, 1.0,1.5], fontsize=20)
+
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    # Show the plot without the legend
+    plt.legend(False)
+    plt.show()
+
+# Call the function to create parity plots for the specified ranges
+plot_range(101000, 101100)         # aa 0.6
+#%%ata
+def plot_distribution(start_idx, end_idx, dpi=300):
+    plt.figure(figsize=(4, 4), dpi=dpi)
+    
+    # Get the actual and predicted values for the specified range
+    actual_values = output_data.iloc[start_idx:end_idx]
+    predicted_values = model.predict(input_data.iloc[start_idx:end_idx].values)
+    
+    # Get the 6th column values for the specified range
+    x_values = input_data.iloc[start_idx:end_idx, 4]
+    
+    # Plot the actual values as a solid line with thick black borders
+    plt.plot(x_values, actual_values, color='blue', label='Actual', linewidth=2, marker='o', markerfacecolor='black', markersize=1)
+    
+    # Plot the predicted values as a dotted line
+    plt.plot(x_values, predicted_values, color='red', linestyle='--', linewidth=3, label='Predicted')
+    
+    # Customize the plot appearance
+    plt.title(f'', fontsize=20)
+    plt.xlabel('r', fontsize=20)
+    plt.ylabel('g(r)', fontsize=20)
+    plt.yticks([0, 3, 6], fontsize=20)
+    #plt.ylim(0, 65)
+    plt.xticks([2.5, 5], fontsize=20)
+    plt.xlim(0.1, 5.1)
+    
+    # Get the current axis
+    ax = plt.gca()
+
+    # Apply tick parameters to the correct axis object
+   
+    # Apply tick parameters specifically to both axes
+    ax.tick_params(axis='both', which='both', length=10, width=2.5, direction='in', labelsize=20, pad=10)
+    
+    # Ensure the ticks are inside the plot
+    ax.tick_params(bottom=True, left=True)
+
+
+    # Customize tick mark lines and spine width
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove the grid
+    plt.grid(False)
+    
+    # Add a legend
+    legend = plt.legend(fontsize=14)
+    legend.get_frame().set_linewidth(0)
+
+    plt.show()
+
+# Example usage: Plot the distribution for data points
+plot_distribution(101000, 101100)          # aa
+#%% rdf shootup
+def plot_distribution(start_idx, end_idx, dpi=300):
+    plt.figure(figsize=(4, 4), dpi=dpi)
+    
+    # Get the actual and predicted values for the specified range
+    actual_values = output_data.iloc[start_idx:end_idx]
+    predicted_values = model.predict(input_data.iloc[start_idx:end_idx].values)
+    
+    # Get the 6th column values for the specified range
+    x_values = input_data.iloc[start_idx:end_idx, 4]
+    
+    # Plot the actual values as a solid line with thick black borders
+    plt.plot(x_values, actual_values, color='blue', label='Actual', linewidth=2, marker='o', markerfacecolor='black', markersize=1)
+    
+    # Plot the predicted values as a dotted line
+    plt.plot(x_values, predicted_values, color='red', linestyle='--', linewidth=3, label='Predicted')
+    
+    # Customize the plot appearance
+    plt.title(f'', fontsize=20)
+    plt.xlabel('r', fontsize=20)
+    plt.ylabel('g(r)', fontsize=20)
+    plt.yticks([0, 1.0, 2.0], fontsize=20)
+    #plt.ylim(0, 65)
+    plt.xticks([2.5, 5], fontsize=20)
+    plt.xlim(0.1, 5.1)
+    
+    # Get the current axis
+    ax = plt.gca()
+
+    # Apply tick parameters to the correct axis object
+   
+    # Apply tick parameters specifically to both axes
+    ax.tick_params(axis='both', which='both', length=10, width=2.5, direction='in', labelsize=20, pad=10)
+    
+    # Ensure the ticks are inside the plot
+    ax.tick_params(bottom=True, left=True)
+
+
+    # Customize tick mark lines and spine width
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove the grid
+    plt.grid(False)
+    
+    # Add a legend
+    legend = plt.legend(fontsize=14)
+    legend.get_frame().set_linewidth(0)
+
+    plt.show()
+
+# Example usage: Plot the distribution for data points
+plot_distribution(1010, 1110) #aa
+plot_distribution(51510, 51610) #ab
+plot_distribution(102111, 102211) #bb
+plot_distribution(102011, 102111) #bb
+plot_distribution(101505, 101605) #bb manuscript data
+plot_distribution(505, 605) #aa
+plot_distribution(51005, 51105) #aa
+
+
+         
+#%%\
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+
+# Apply seaborn style
+sns.set_style("whitegrid")
+
+# Function to plot parity plot for training data points
+def plot_parity_train():
+    plt.figure(figsize=(4, 4))  # Square figure
+    
+    # Get actual and predicted values for the training data
+    actual_values_train = y_train.flatten()
+    predicted_values_train = model.predict(X_train).flatten()
+
+    # Set a fixed size for the scatter points (e.g., 200)
+    fixed_size = 200  # Adjust this value to increase or decrease the size of the points
+
+    # Create scatter plot with transparency (alpha) and fixed point size
+    scatter = plt.scatter(actual_values_train, predicted_values_train, s=fixed_size, edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values_train), np.min(predicted_values_train))
+    max_val = max(np.max(actual_values_train), np.max(predicted_values_train))
+    
+    plt.xlim(min_val, 63)
+    plt.ylim(min_val, 63)
+
+    # Plot the x=y diagonal line (perfect prediction line)
+    plt.plot([min_val, 63], [min_val, 63], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Set tick labels and their sizes
+    plt.xticks([20, 40, 60], fontsize=20)
+    plt.yticks([0, 20, 40, 60], fontsize=20)
+
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    # Remove legend
+    plt.legend(False)
+    
+    # Show plot
+    plt.show()
+
+# Call the function to plot the training data parity plot
+plot_parity_train()
+#%%
+def plot_parity_outside():
+    plt.figure(figsize=(4, 4))  # Square figure
+    
+    # Get actual and predicted values for the test data outside the training range
+    actual_values_outside = test_output.flatten()
+    predicted_values_outside = y_pred_outside_range.flatten()
+
+    # Generate random sizes for the scatter points
+      # Random sizes for point radii
+    fixed_size = 200
+    # Create scatter plot with transparency (alpha)
+    scatter = plt.scatter(actual_values_outside, predicted_values_outside, s=fixed_size, edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values_outside), np.min(predicted_values_outside))
+    max_val = max(np.max(actual_values_outside), np.max(predicted_values_outside))
+    
+    plt.xlim(min_val, max_val)
+    plt.ylim(min_val, max_val)
+
+    # Plot the x=y diagonal line (perfect prediction line)
+    plt.plot([min_val, 68], [min_val, 68], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Bold and larger font for tick marks
+    plt.xticks([ 20, 40, 60], fontsize=20)
+    plt.yticks([0, 20, 40, 60], fontsize=20)
+
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    plt.legend(False)
+    plt.show()
+
+
+
+
+# Call the function to plot the test data parity plot for data outside the training range
+plot_parity_outside()
+
+#%%
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
+def plot_parity_outside():
+    plt.figure(figsize=(4, 4))  # Square figure
+    
+    # Get actual and predicted values for the test data outside the training range
+    actual_values_outside = test_output.flatten()
+    predicted_values_outside = y_pred_outside_range.flatten()
+
+    # Generate random sizes for the scatter points
+    fixed_size = 200
+    # Create scatter plot with transparency (alpha) and colormap
+    scatter = plt.scatter(actual_values_outside, predicted_values_outside, s=fixed_size, c=predicted_values_outside, cmap='jet', edgecolor='blue', alpha=0.5)
+
+    # Get the limits of the current plot
+    min_val = min(np.min(actual_values_outside), np.min(predicted_values_outside))
+    max_val = max(np.max(actual_values_outside), np.max(predicted_values_outside))
+    
+    plt.xlim(min_val, max_val)
+    plt.ylim(min_val, max_val)
+
+    # Plot the x=y diagonal line (perfect prediction line)
+    plt.plot([min_val, 68], [min_val, 68], color='red', linestyle='-', linewidth=3)
+
+    # Customizations
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+
+    # Bold and larger font for tick marks
+    plt.xticks([20, 40, 60], fontsize=20)
+    plt.yticks([0, 20, 40, 60], fontsize=20)
+
+    # Set spine colors and thickness
+    ax = plt.gca()
+    plt.tick_params(axis='both', which='both', length=8, width=2, direction='in', labelsize=20)
+    ax.tick_params(bottom=True, left=True)
+    for spine in ax.spines.values():
+        spine.set_linewidth(2.5)
+        spine.set_edgecolor('black')
+
+    # Remove grid
+    plt.grid(False)
+
+    plt.legend(False)
+    plt.colorbar(scatter, label='Predicted Values')  # Add colorbar
+    plt.show()
+
+    # Density plot
+    plt.figure(figsize=(6, 6))
+    sns.kdeplot(x=actual_values_outside, y=predicted_values_outside, cmap='Blues', fill=True, thresh=0, levels=100)
+    plt.xlim(0, 10000)
+    plt.ylim(0, 10000)
+    plt.xlabel('Actual g(r)', fontsize=20)
+    plt.ylabel('Predicted g(r)', fontsize=20)
+    plt.title('Density Plot', fontsize=20)
+    plt.show()
+
+# Call the function to plot the test data parity plot and density plot for data outside the training range
+plot_parity_outside()
+
